@@ -27,7 +27,10 @@ can be integrated with server and client implementations.
 
 ## Usage
 
-The APIs are designed around streaming HTTP bodies using the `AsyncReader` and `AsyncWriter` protocols. Both client and server support full bidirectional streaming with optional trailers.
+The APIs are designed around streaming HTTP bodies using the `AsyncReader`
+and `AsyncWriter` protocols. Both client and server support full bidirectional
+streaming with optional trailers. We are still exploring adding more convenience
+APIs to make simple things easier.
 
 ### HTTP Client
 
