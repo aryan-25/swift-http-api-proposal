@@ -217,14 +217,7 @@ final class URLSessionTaskDelegateBridge: NSObject, Sendable, URLSessionDataDele
         if aSelector == #selector(
             (any URLSessionTaskDelegate).urlSession(_:task:needNewBodyStreamFrom:completionHandler:)
         ) {
-            switch self.requestBody {
-            case nil:
-                return false
-            case .restartable:
-                return false
-            case .seekable:
-                return true
-            }
+            return self.requestBody?.isSeekable == true
         }
         return super.responds(to: aSelector)
     }
@@ -236,35 +229,19 @@ final class URLSessionTaskDelegateBridge: NSObject, Sendable, URLSessionDataDele
     ) {
         Task.immediate { @RequestBodyActor in
             self.requestBodyTask?.cancel()
-            switch self.requestBody {
-            case nil:
+            guard let requestBody = self.requestBody else {
                 fatalError()
-            case .restartable(let producer):
-                self.requestBodyTask = Task.immediate { @RequestBodyActor in
-                    let bridge = URLSessionRequestStreamBridge()
-                    completionHandler(bridge.inputStream)
-                    do {
-                        try await producer(bridge)
-                    } catch {
-                        if bridge.writeFailed {
-                            // Ignore error
-                        } else {
-                            self.requestBodyStreamFailed(with: error)
-                        }
-                    }
-                }
-            case .seekable(let producer):
-                self.requestBodyTask = Task.immediate { @RequestBodyActor in
-                    let bridge = URLSessionRequestStreamBridge()
-                    completionHandler(bridge.inputStream)
-                    do {
-                        try await producer(0, bridge)
-                    } catch {
-                        if bridge.writeFailed {
-                            // Ignore error
-                        } else {
-                            self.requestBodyStreamFailed(with: error)
-                        }
+            }
+            self.requestBodyTask = Task.immediate { @RequestBodyActor in
+                let bridge = URLSessionRequestStreamBridge()
+                completionHandler(bridge.inputStream)
+                do {
+                    try await requestBody.produce(into: bridge)
+                } catch {
+                    if bridge.writeFailed {
+                        // Ignore error
+                    } else {
+                        self.requestBodyStreamFailed(with: error)
                     }
                 }
             }
@@ -279,23 +256,19 @@ final class URLSessionTaskDelegateBridge: NSObject, Sendable, URLSessionDataDele
     ) {
         Task.immediate { @RequestBodyActor in
             self.requestBodyTask?.cancel()
-            switch self.requestBody {
-            case nil:
+            guard let requestBody = self.requestBody else {
                 fatalError()
-            case .restartable:
-                fatalError()
-            case .seekable(let producer):
-                self.requestBodyTask = Task.immediate { @RequestBodyActor in
-                    let bridge = URLSessionRequestStreamBridge()
-                    completionHandler(bridge.inputStream)
-                    do {
-                        try await producer(offset, bridge)
-                    } catch {
-                        if bridge.writeFailed {
-                            // Ignore error
-                        } else {
-                            self.requestBodyStreamFailed(with: error)
-                        }
+            }
+            self.requestBodyTask = Task.immediate { @RequestBodyActor in
+                let bridge = URLSessionRequestStreamBridge()
+                completionHandler(bridge.inputStream)
+                do {
+                    try await requestBody.produce(offset: offset, into: bridge)
+                } catch {
+                    if bridge.writeFailed {
+                        // Ignore error
+                    } else {
+                        self.requestBodyStreamFailed(with: error)
                     }
                 }
             }
